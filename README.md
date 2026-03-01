@@ -1,16 +1,177 @@
-# powerPot
-A two channel solution that converts the voltage from potentiometers to PWM outputs for heavier
-loads. This is helpful when power-pots are too large, expensive, hot or hard to get.
-The load just needs a switching device like a transistor.
-Since the switch does not operate in a partialy on state, it disipates very
-little power.
+# TCC Lock Controller (ATtiny85)
 
-The potentiometer is connected across VCC, be it 3.3 or 5 Volts.
-The wiper of the pot can then have any voltage from 0 to VCC.
-The wiper is connected to the multiplexer. The MUX then selects this input and
-connects it to the ADC.
-The ADC is configured to use VCC as its reference voltage and to provide only
-8 bits (0 -- 255).
-For those reasons the ADC resolves 0 to VCC to an integer over the range of
-0 to 255.
-That integer is fed to the PWM timer.
+## Overview
+
+This firmware implements a frequency-based torque converter clutch (TCC)
+lock controller using an ATtiny85 microcontroller.
+
+The system:
+
+-   Measures an ABS-derived square-wave speed signal.
+-   Computes frequency using a 1-second gate measurement.
+-   Engages the torque converter clutch above a defined frequency
+    threshold.
+-   Disengages the clutch below a lower threshold.
+-   Enforces a 1-second minimum dwell time between state transitions.
+-   Initializes in a safe (clutch OFF) state at power-up.
+
+The firmware is fully interrupt-driven and spends most of its time in
+sleep mode.
+
+------------------------------------------------------------------------
+
+## Hardware Platform
+
+### Microcontroller
+
+-   Device: ATtiny85\
+-   Clock: Internal 8 MHz RC oscillator\
+-   `F_CPU = 8000000UL`\
+-   Recommended fuse configuration:
+    -   `LFUSE = 0xE2` (CKDIV8 disabled, full 8 MHz)
+    -   `HFUSE = 0xDF`
+    -   `EFUSE = 0xFF`
+
+### Board
+
+Designed and tested on: - Adafruit Trinket 5 V (ATtiny85)
+
+### Pin Mapping
+
+  Function   ATtiny85 Pin   Description
+  ---------- -------------- -------------------------
+  Input      PB4            ABS speed signal (TTL)
+  Output     PB1            TCC driver output + LED
+
+> Note: PB1 is MISO during ISP programming. Ensure external circuitry
+> does not drive this line during programming.
+
+------------------------------------------------------------------------
+
+## Frequency Measurement Method
+
+The firmware counts rising edges on PB4 over a 1-second gate interval.
+
+Given: - ABS signal ≈ 2.2 Hz per mph
+
+Typical thresholds:
+
+-   Engage clutch at ≥ 57 Hz (\~26 mph)
+-   Disengage clutch at ≤ 52 Hz (\~24 mph)
+
+This produces approximately 2 mph hysteresis.
+
+------------------------------------------------------------------------
+
+## Timer Configuration
+
+Timer0 is configured in CTC mode:
+
+-   Prescaler: 1024
+-   OCR0A = 124
+-   Interrupt interval ≈ 16 ms
+
+62.5 interrupts accumulate to approximately 1 second.
+
+At each completed 1-second gate:
+
+-   The edge count is latched.
+-   The counter resets.
+-   The state machine evaluates thresholds.
+
+------------------------------------------------------------------------
+
+## Control Logic
+
+### Frequency Hysteresis
+
+-   LOW → HIGH if count ≥ 57
+-   HIGH → LOW if count ≤ 52
+
+### Temporal Lockout
+
+After any transition:
+
+-   Output is locked for 1 full gate (\~1 s).
+-   If frequency crosses during lockout, evaluation occurs immediately
+    after lockout expires.
+
+------------------------------------------------------------------------
+
+## State Machine
+
+At each 1-second gate:
+
+If lockout active: - Decrement lockout counter. - No state change.
+
+If lockout inactive: - If LOW and count ≥ 57 → set HIGH and start
+lockout. - If HIGH and count ≤ 52 → set LOW and start lockout. -
+Otherwise retain state.
+
+------------------------------------------------------------------------
+
+## Power Behavior
+
+-   Output initializes LOW at power-up.
+-   Clutch is disengaged until first valid decision cycle.
+
+------------------------------------------------------------------------
+
+## Execution Model
+
+The firmware is interrupt-driven:
+
+-   Pin-change ISR counts rising edges.
+-   Timer0 ISR handles gate timing and state evaluation.
+-   Main loop remains in `sleep_mode()` (IDLE).
+
+------------------------------------------------------------------------
+
+## Build
+
+Example build flags:
+
+``` bash
+avr-gcc -mmcu=attiny85 -std=c99 -DF_CPU=8000000UL -Os -o tcclc.elf tcclc.c
+avr-objcopy -O ihex tcclc.elf tcclc.hex
+```
+
+------------------------------------------------------------------------
+
+## Programming (Atmel-ICE)
+
+``` bash
+avrdude -p t85 -c atmelice_isp -P usb -U flash:w:tcclc.hex:i
+```
+
+Set fuses:
+
+``` bash
+avrdude -p t85 -c atmelice_isp -P usb -U lfuse:w:0xE2:m -U hfuse:w:0xDF:m -U efuse:w:0xFF:m
+```
+
+------------------------------------------------------------------------
+
+## Design Characteristics
+
+### Advantages
+
+-   Deterministic timing
+-   Integer arithmetic only
+-   Low CPU load
+-   Robust frequency and temporal hysteresis
+-   Safe startup behavior
+
+### Limitations
+
+-   Frequency resolution limited to 1 Hz (1 s gate)
+-   Up to 1 s decision latency
+-   Threshold drift with internal RC oscillator tolerance
+
+------------------------------------------------------------------------
+
+## Summary
+
+This project implements a simple, robust, and low-power frequency-based
+torque converter clutch controller suitable for automotive applications
+where vehicle speed is derived from a digital ABS signal.
