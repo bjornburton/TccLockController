@@ -12,7 +12,6 @@ MCU:=attiny85
 PROGSW:=avrdude
 
 # Which fuses
-#LFUSE:= lfuse:w:0x62:m //default is 62, Trinket like F2
 LFUSE:= lfuse:w:0xE2:m 
 HFUSE:= hfuse:w:0xDF:m 
 EFUSE:= efuse:w:0xFF:m
@@ -52,8 +51,6 @@ clean:
 	-rm -f $(OBJECTS)
 	-rm -f $(ELF)
 	-rm -f $(TEXSRC)
-	-rm -f $(CSOURCES)
-	-rm -f $(CSOURCES)
 	-rm -f $(DOTSRC)
 	-rm -f $(EGYPTSRC)
 	
