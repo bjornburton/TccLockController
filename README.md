@@ -7,13 +7,18 @@ lock controller using an ATtiny85 microcontroller.
 
 The system:
 
--   Measures an ABS-derived square-wave speed signal.
+-   Measures a square-wave speed signal.
 -   Computes frequency using a 1-second gate measurement.
 -   Engages the torque converter clutch above a defined frequency
     threshold.
 -   Disengages the clutch below a lower threshold.
 -   Enforces a 1-second minimum dwell time between state transitions.
 -   Initializes in a safe (clutch OFF) state at power-up.
+
+The system has been successfully implemented in a Jeep Grand Cherokee WJ
+equipped with a 42RE 4-speed automatic transmission. The ABS speed
+signal was chosen due to the non-digital nature of the transmission
+output speed sensor signal (sine wave).
 
 The firmware is fully interrupt-driven and spends most of its time in
 sleep mode.
@@ -52,7 +57,7 @@ Designed and tested on: - Adafruit Trinket 5 V (ATtiny85)
 
 The firmware counts rising edges on PB4 over a 1-second gate interval.
 
-Given: - ABS signal ≈ 2.2 Hz per mph
+Given (For Jeep WJ ABS speed signal): - Speed signal ≈ 2.2 Hz per mph
 
 Typical thresholds:
 
@@ -174,4 +179,4 @@ avrdude -p t85 -c atmelice_isp -P usb -U lfuse:w:0xE2:m -U hfuse:w:0xDF:m -U efu
 
 This project implements a simple, robust, and low-power frequency-based
 torque converter clutch controller suitable for automotive applications
-where vehicle speed is derived from a digital ABS signal.
+where vehicle speed is derived from a digital speed signal.
