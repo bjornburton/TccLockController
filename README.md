@@ -42,11 +42,11 @@ sleep mode.
 Designed and tested on: - Adafruit Trinket 5 V (ATtiny85)
 
 ### Pin Mapping
-
-  Function   ATtiny85 Pin   Description
-  ---------- -------------- -------------------------
-  Input      PB4            ABS speed signal (TTL)
-  Output     PB1            TCC driver output + LED
+| Function | ATtiny85 Pin | Description                                   |
+|------------------------|---------------|--------------------------------|
+| Input                  | PB4             | ABS speed signal (TTL)       |
+| Output                 | PB1             | TCC driver output + LED      |
+------------------------------------------------------------------------
 
 > Note: PB1 is MISO during ISP programming. Ensure external circuitry
 > does not drive this line during programming.
