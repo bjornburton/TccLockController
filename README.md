@@ -51,7 +51,8 @@ Designed and tested on: - Adafruit Trinket 5 V (ATtiny85)
 > Note: PB1 is MISO during ISP programming. Ensure external circuitry
 > does not drive this line during programming.
 
-### Atmel-ICE to Trinket Programming Connections
+
+#### Atmel-ICE to Trinket Programming Connections
 
 | Atmel-ICE AVR Port Pin | Mini-Squid Pin | Trinket Pin Assignment        |
 |------------------------|---------------|--------------------------------|
