@@ -24,6 +24,7 @@
 # include <avr/io.h>
 # include <avr/interrupt.h>
 # include <avr/sleep.h>
+# include <avr/wdt.h>
 # include <stdint.h>
 
 /* ---- Pin assignments (preferred) ---- */
@@ -120,6 +121,8 @@ ISR(TIMER0_COMPA_vect)
             }
         }
     }
+
+    wdt_reset();
 }
 
 static void io_init(void)
@@ -161,6 +164,13 @@ static void timer0_init(void)
 
 int main(void)
 {
+    /* Ensure WDT is off before reconfiguring */
+    wdt_disable();
+
+    /* Enable watchdog reset, choose a timeout comfortably > 1 s gate */
+    wdt_enable(WDTO_2S);
+    wdt_reset();
+
     io_init();
     timer0_init();
 
