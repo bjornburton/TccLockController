@@ -31,13 +31,13 @@ sleep mode.
 
 ### Microcontroller
 
--   Device: ATtiny85\
--   Clock: Internal 8 MHz RC oscillator\
--   `F_CPU = 8000000UL`\
+-   Device: ATtiny85
+-   Clock: Internal 8 MHz RC oscillator
+    -   `F_CPU = 8000000UL`
 -   Recommended fuse configuration:
     -   `LFUSE = 0xE2` (CKDIV8 disabled, full 8 MHz)
     -   `HFUSE = 0xDF`
-    -   `EFUSE = 0xFC (Brown Out Detection of about 4.3 Volts)
+    -   `EFUSE = 0xFC` (Brown Out Detection of about 4.3 Volts)
 
 ### Board
 
