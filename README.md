@@ -14,6 +14,8 @@ The system:
 -   Disengages the clutch below a lower threshold.
 -   Enforces a 1-second minimum dwell time between state transitions.
 -   Initializes in a safe (clutch OFF) state at power-up.
+-   Brownout detection is set to about 4.3 Volts. 
+-   Watchdog set to about 2 seconds.
 
 The system has been successfully implemented in a Jeep Grand Cherokee WJ
 equipped with a 42RE 4-speed automatic transmission. The ABS speed
@@ -35,7 +37,7 @@ sleep mode.
 -   Recommended fuse configuration:
     -   `LFUSE = 0xE2` (CKDIV8 disabled, full 8 MHz)
     -   `HFUSE = 0xDF`
-    -   `EFUSE = 0xFF`
+    -   `EFUSE = 0xFC (Brown Out Detection of about 4.3 Volts)
 
 ### Board
 
@@ -152,7 +154,7 @@ avrdude -p t85 -c atmelice_isp -P usb -U flash:w:tcclc.hex:i
 Set fuses:
 
 ``` bash
-avrdude -p t85 -c atmelice_isp -P usb -U lfuse:w:0xE2:m -U hfuse:w:0xDF:m -U efuse:w:0xFF:m
+avrdude -p t85 -c atmelice_isp -P usb -U lfuse:w:0xE2:m -U hfuse:w:0xDF:m -U efuse:w:0xFC:m
 ```
 
 ------------------------------------------------------------------------
@@ -160,7 +162,6 @@ avrdude -p t85 -c atmelice_isp -P usb -U lfuse:w:0xE2:m -U hfuse:w:0xDF:m -U efu
 ## Design Characteristics
 
 ### Advantages
-
 -   Deterministic timing
 -   Integer arithmetic only
 -   Low CPU load
