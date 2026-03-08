@@ -12,15 +12,16 @@ MCU:=attiny85
 PROGSW:=avrdude
 
 # Which fuses
+#BOD ≈ 4.3 V: EFUSE = 0xFC (BODLEVEL = 100)
 LFUSE:= lfuse:w:0xE2:m 
 HFUSE:= hfuse:w:0xDF:m 
-EFUSE:= efuse:w:0xFF:m
+EFUSE:= efuse:w:0xFC:m
 
 
 # Apps and Flags
 PROGSWFLAGS:= -p $(BOARD)
 CC       := avr-gcc 
-CFLAGS   :=  -std=c99 -g -mmcu=$(MCU) -Wall -Os -pedantic -fdump-rtl-expand
+CFLAGS   :=  -std=c99 -g -mmcu=$(MCU) -Wall -Os -pedantic 
 CONV     :=avr-objcopy
 CONVFLAGS:= -j .text -j .data -O ihex
 LIBS     :=
@@ -50,9 +51,6 @@ $(HEX): $(ELF)
 clean:
 	-rm -f $(OBJECTS)
 	-rm -f $(ELF)
-	-rm -f $(TEXSRC)
-	-rm -f $(DOTSRC)
-	-rm -f $(EGYPTSRC)
 	
 install:
 	$(PROGSW) $(PROGSWFLAGS) -c usbtiny -U flash:w:$(HEX)
