@@ -44,15 +44,26 @@ sleep mode.
 Designed and tested on: - Adafruit Trinket 5 V (ATtiny85)
 
 ### Pin Mapping
-
-  Function   ATtiny85 Pin   Description
-  ---------- -------------- -------------------------
-  Input      PB4            ABS speed signal (TTL)
-  Output     PB1            TCC driver output + LED
+| Function | ATtiny85 Pin | Description                                   |
+|------------------------|---------------|--------------------------------|
+| Input                  | PB4             | ABS speed signal (TTL)       |
+| Output                 | PB1             | TCC driver output + LED      |
+------------------------------------------------------------------------
 
 > Note: PB1 is MISO during ISP programming. Ensure external circuitry
 > does not drive this line during programming.
 
+
+#### Atmel-ICE to Trinket Programming Connections
+
+| Atmel-ICE AVR Port Pin | Mini-Squid Pin | Trinket Pin Assignment        |
+|------------------------|---------------|--------------------------------|
+| Pin 1 (TCK)            | 1             | CN4-2 / #2 (SCK)               |
+| Pin 2 (GND)            | 2             | CN3-4 / Gnd (GND)              |
+| Pin 3 (TDO)            | 3             | CN4-3 / #1 (MISO)              |
+| Pin 4 (VTG)            | 4             | CN4-1 / 5V (VTG)               |
+| Pin 6 (nSRST)          | 6             | CN3-1 / Rst (/RESET)           |
+| Pin 9 (TDI)            | 9             | CN4-4 / #0 (MOSI)              |
 ------------------------------------------------------------------------
 
 ## Frequency Measurement Method
