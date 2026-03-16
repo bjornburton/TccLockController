@@ -3,14 +3,12 @@
  *
  * Control logic evaluated every 300 ms gate:
  *
- *   IF vehicle_speed > 30 mph:
+ *   IF vehicle_speed > 27 mph:
  *       clutch_state = ENGAGED
- *   ELSE IF engine_speed < 1100 rpm:
+ *   ELSE IF engine_speed < 950 rpm:
  *       clutch_state = DISENGAGED
  *   ELSE IF vehicle_speed > 15 mph:
  *       clutch_state = ENGAGED
- *   ELSE IF vehicle_speed < 14 mph:
- *       clutch_state = DISENGAGED
  *   ELSE:
  *       clutch_state = clutch_state
  *
@@ -49,15 +47,14 @@
  *
  * Engine Frequency = 1/5 Hz per rpm
  *
- * 1200 rpm -> 240 Hz
- * 240 Hz * 0.300 s = 72 pulses
+ * 950 rpm -> 190 Hz
+ * 190 Hz * 0.300 s = 57 pulses
  *
- * engine_speed < 1200 rpm -> count < 72 -> disengage if count <= 71
+ * engine_speed < 950 rpm -> count < 57 -> disengage if count <= 56
  */
-#define ABS_FORCE_ENGAGE_COUNT   20u
-#define ENGINE_MIN_COUNT         66u
+#define ABS_FORCE_ENGAGE_COUNT   18u
+#define ENGINE_MIN_COUNT         57u
 #define ABS_ENGAGE_COUNT         10u
-#define ABS_DISENGAGE_COUNT       9u
 
 /* -------- Shared ISR state -------- */
 static volatile uint16_t abs_count = 0;
@@ -130,11 +127,6 @@ ISR(TIMER0_COMPA_vect)
     else if (abs >= ABS_ENGAGE_COUNT) {
         PORTB |= (uint8_t)(1u << CLUTCH_PIN);
         clutch_state = CLUTCH_ENGAGED;
-    }
-    /* ELSE IF vehicle_speed < 10 mph */
-    else if (abs <= ABS_DISENGAGE_COUNT) {
-        PORTB &= (uint8_t)~(1u << CLUTCH_PIN);
-        clutch_state = CLUTCH_DISENGAGED;
     }
     /* ELSE maintain previous state */
     else {
