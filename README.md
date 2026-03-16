@@ -1,194 +1,270 @@
+
 # TCC Lock Controller (ATtiny85)
 
 ## Overview
 
-This firmware implements a frequency-based torque converter clutch (TCC)
-lock controller using an ATtiny85 microcontroller.
+This firmware implements a torque‑converter clutch (TCC) lock controller
+using an ATtiny85 microcontroller.
 
-The system:
+The controller:
 
--   Measures a square-wave speed signal.
--   Computes frequency using a 1-second gate measurement.
--   Engages the torque converter clutch above a defined frequency
-    threshold.
--   Disengages the clutch below a lower threshold.
--   Enforces a 1-second minimum dwell time between state transitions.
--   Initializes in a safe (clutch OFF) state at power-up.
--   Brownout detection is set to about 4.3 Volts. 
--   Watchdog set to about 2 seconds.
+- Measures **vehicle speed** from an ABS square‑wave signal.
+- Measures **engine speed** from a digital RPM signal.
+- Computes signal frequency using a **300 ms gate interval**.
+- Evaluates clutch engagement logic once per gate.
+- Initializes in a safe **clutch disengaged** state at power‑up.
+- Runs almost entirely interrupt‑driven while the CPU remains in sleep mode.
 
-The system has been successfully implemented in a Jeep Grand Cherokee WJ
-equipped with a 42RE 4-speed automatic transmission. The ABS speed
-signal was chosen due to the non-digital nature of the transmission
-output speed sensor signal (sine wave).
+The system has been tested in a **Jeep Grand Cherokee WJ with a 42RE
+automatic transmission**. The ABS signal is used because the transmission
+output speed sensor provides an analog sine signal rather than a digital
+pulse stream.
 
-The firmware is fully interrupt-driven and spends most of its time in
-sleep mode.
-
-------------------------------------------------------------------------
+---
 
 ## Hardware Platform
 
 ### Microcontroller
 
--   Device: ATtiny85
--   Clock: Internal 8 MHz RC oscillator
-    -   `F_CPU = 8000000UL`
--   Recommended fuse configuration:
-    -   `LFUSE = 0xE2` (CKDIV8 disabled, full 8 MHz)
-    -   `HFUSE = 0xDF`
-    -   `EFUSE = 0xFC` (Brown Out Detection of about 4.3 Volts)
+- Device: **ATtiny85**
+- Clock: **Internal 8 MHz RC oscillator**
+- `F_CPU = 8000000UL`
+
+Recommended fuse configuration:
+
+| Fuse | Value | Purpose |
+|-----|------|---------|
+| LFUSE | `0xE2` | CKDIV8 disabled (full 8 MHz clock) |
+| HFUSE | `0xDF` | Standard configuration |
+| EFUSE | `0xFC` | Brown‑out detection ≈ 4.3 V |
+
+---
 
 ### Board
 
-Designed and tested on: - Adafruit Trinket 5 V (ATtiny85)
+Tested on:
 
-### Pin Mapping
-| Function | ATtiny85 Pin | Description                                   |
-|------------------------|---------------|--------------------------------|
-| Input                  | PB4             | ABS speed signal (TTL)       |
-| Output                 | PB1             | TCC driver output + LED      |
-------------------------------------------------------------------------
+- **Adafruit Trinket 5V (ATtiny85)**
 
-> Note: PB1 is MISO during ISP programming. Ensure external circuitry
-> does not drive this line during programming.
+---
 
+## Pin Mapping
 
-#### Atmel-ICE to Trinket Programming Connections
+| Function | ATtiny85 Pin | Description |
+|---------|--------------|-------------|
+| Vehicle Speed Input | PB4 | ABS speed signal (TTL) |
+| Engine Speed Input | PB2 | Engine RPM signal (TTL) |
+| Clutch Output | PB1 | TCC control output + LED |
 
-| Atmel-ICE AVR Port Pin | Mini-Squid Pin | Trinket Pin Assignment        |
-|------------------------|---------------|--------------------------------|
-| Pin 1 (TCK)            | 1             | CN4-2 / #2 (SCK)               |
-| Pin 2 (GND)            | 2             | CN3-4 / Gnd (GND)              |
-| Pin 3 (TDO)            | 3             | CN4-3 / #1 (MISO)              |
-| Pin 4 (VTG)            | 4             | CN4-1 / 5V (VTG)               |
-| Pin 6 (nSRST)          | 6             | CN3-1 / Rst (/RESET)           |
-| Pin 9 (TDI)            | 9             | CN4-4 / #0 (MOSI)              |
-------------------------------------------------------------------------
+---
 
-## Frequency Measurement Method
+#### Atmel‑ICE to Trinket Programming Connections
 
-The firmware counts rising edges on PB4 over a 1-second gate interval.
+| Atmel‑ICE AVR Port Pin | Mini‑Squid Pin | Trinket Pin Assignment |
+|-----------------------|---------------|-----------------------|
+| Pin 1 (TCK) | 1 | CN4‑2 / #2 (SCK) |
+| Pin 2 (GND) | 2 | CN3‑4 / GND |
+| Pin 3 (TDO) | 3 | CN4‑3 / #1 (MISO) |
+| Pin 4 (VTG) | 4 | CN4‑1 / 5V (VTG) |
+| Pin 6 (nSRST) | 6 | CN3‑1 / RESET |
+| Pin 9 (TDI) | 9 | CN4‑4 / #0 (MOSI) |
 
-Given (For Jeep WJ ABS speed signal): - Speed signal ≈ 2.2 Hz per mph
+---
 
-Typical thresholds:
+## Signal Ratios
 
--   Engage clutch at ≥ 57 Hz (\~26 mph)
--   Disengage clutch at ≤ 52 Hz (\~24 mph)
+The firmware converts frequency measurements to vehicle speed and engine RPM
+implicitly using the following ratios:
 
-This produces approximately 2 mph hysteresis.
+| Signal | Ratio |
+|------|------|
+| ABS Frequency | **2.2 Hz per mph** |
+| Engine Frequency | **1/5 Hz per rpm** |
 
-------------------------------------------------------------------------
+Example conversions:
 
-## Timer Configuration
+| Quantity | Frequency |
+|---------|-----------|
+| 27 mph | 59.4 Hz |
+| 15 mph | 33.0 Hz |
+| 950 rpm | 190 Hz |
 
-Timer0 is configured in CTC mode:
+---
 
--   Prescaler: 1024
--   OCR0A = 124
--   Interrupt interval ≈ 16 ms
+## Frequency Measurement
 
-62.5 interrupts accumulate to approximately 1 second.
+Rising edges on the input pins are counted during a **300 ms gate interval**.
 
-At each completed 1-second gate:
+At the end of each gate:
 
--   The edge count is latched.
--   The counter resets.
--   The state machine evaluates thresholds.
+1. Edge counts are latched.
+2. Counters are reset.
+3. Control logic evaluates clutch state.
 
-------------------------------------------------------------------------
+This approach provides stable integer‑based frequency measurement with very
+low CPU overhead.
+
+---
+
+## Threshold Conversion (300 ms Gate)
+
+Using the signal ratios above:
+
+| Condition | Frequency | Pulses in 300 ms | Firmware Constant |
+|----------|-----------|------------------|------------------|
+| 27 mph | 59.4 Hz | ≈17.8 | `ABS_FORCE_ENGAGE_COUNT = 18` |
+| 15 mph | 33 Hz | ≈9.9 | `ABS_ENGAGE_COUNT = 10` |
+| 950 rpm | 190 Hz | 57 | `ENGINE_MIN_COUNT = 57` |
+
+These values correspond directly to the constants defined in the firmware.
+
+---
 
 ## Control Logic
 
-### Frequency Hysteresis
+The clutch state is evaluated **once every 300 ms gate** using the following
+rule order:
 
--   LOW → HIGH if count ≥ 57
--   HIGH → LOW if count ≤ 52
+```
+IF vehicle_speed > 27 mph:
+    clutch_state = ENGAGED
 
-### Temporal Lockout
+ELSE IF engine_speed < 950 rpm:
+    clutch_state = DISENGAGED
 
-After any transition:
+ELSE IF vehicle_speed > 15 mph:
+    clutch_state = ENGAGED
 
--   Output is locked for 1 full gate (\~1 s).
--   If frequency crosses during lockout, evaluation occurs immediately
-    after lockout expires.
+ELSE:
+    clutch_state = clutch_state
+```
 
-------------------------------------------------------------------------
+This ordering ensures:
 
-## State Machine
+- High‑speed lockup always engages the clutch.
+- Engine stall protection disengages the clutch.
+- Normal engagement occurs above 15 mph.
+- Otherwise the clutch state remains unchanged.
 
-At each 1-second gate:
+---
 
-If lockout active: - Decrement lockout counter. - No state change.
+## Timer Configuration
 
-If lockout inactive: - If LOW and count ≥ 57 → set HIGH and start
-lockout. - If HIGH and count ≤ 52 → set LOW and start lockout. -
-Otherwise retain state.
+Timer0 operates in **CTC (Clear‑Timer‑on‑Compare) mode**.
 
-------------------------------------------------------------------------
+| Parameter | Value |
+|----------|------|
+| Prescaler | 1024 |
+| OCR0A | 124 |
+| Interrupt period | ≈16 ms |
+
+The firmware accumulates these interrupts until **300 ms** has elapsed,
+which defines the measurement gate.
+
+---
+
+## Interrupt Architecture
+
+Two interrupts drive the firmware.
+
+### Pin‑Change Interrupt (PCINT)
+
+Triggered by PB4 and PB2.
+
+Responsibilities:
+
+- Detect rising edges on input signals
+- Increment frequency counters
+
+### Timer0 Compare Interrupt
+
+Triggered approximately every 16 ms.
+
+Responsibilities:
+
+- Maintain the 300 ms measurement gate
+- Snapshot frequency counters
+- Execute clutch control logic
+
+---
 
 ## Power Behavior
 
--   Output initializes LOW at power-up.
--   Clutch is disengaged until first valid decision cycle.
+- Clutch output initializes **LOW** at power‑up.
+- Clutch remains disengaged until the first valid decision cycle completes.
 
-------------------------------------------------------------------------
+---
 
 ## Execution Model
 
-The firmware is interrupt-driven:
+The firmware is entirely interrupt‑driven.
 
--   Pin-change ISR counts rising edges.
--   Timer0 ISR handles gate timing and state evaluation.
--   Main loop remains in `sleep_mode()` (IDLE).
+The main loop simply sleeps:
 
-------------------------------------------------------------------------
+```
+while(1)
+{
+    sleep_mode();
+}
+```
+
+The CPU wakes only for interrupts, minimizing power consumption and
+reducing timing jitter.
+
+---
 
 ## Build
 
-Example build flags:
+Example compilation:
 
-``` bash
+```bash
 avr-gcc -mmcu=attiny85 -std=c99 -DF_CPU=8000000UL -Os -o tcclc.elf tcclc.c
 avr-objcopy -O ihex tcclc.elf tcclc.hex
 ```
 
-------------------------------------------------------------------------
+---
 
-## Programming (Atmel-ICE)
+## Programming (Atmel‑ICE)
 
-``` bash
+Flash firmware:
+
+```bash
 avrdude -p t85 -c atmelice_isp -P usb -U flash:w:tcclc.hex:i
 ```
 
-Set fuses:
+Program fuses:
 
-``` bash
-avrdude -p t85 -c atmelice_isp -P usb -U lfuse:w:0xE2:m -U hfuse:w:0xDF:m -U efuse:w:0xFC:m
+```bash
+avrdude -p t85 -c atmelice_isp -P usb \
+-U lfuse:w:0xE2:m \
+-U hfuse:w:0xDF:m \
+-U efuse:w:0xFC:m
 ```
 
-------------------------------------------------------------------------
+---
 
 ## Design Characteristics
 
 ### Advantages
--   Deterministic timing
--   Integer arithmetic only
--   Low CPU load
--   Robust frequency and temporal hysteresis
--   Safe startup behavior
+
+- Deterministic timing
+- Interrupt‑driven architecture
+- Integer arithmetic only
+- Low CPU load
+- Robust startup behavior
+- Very small flash footprint
 
 ### Limitations
 
--   Frequency resolution limited to 1 Hz (1 s gate)
--   Up to 1 s decision latency
--   Threshold drift with internal RC oscillator tolerance
+- Frequency resolution limited by 300 ms gate
+- Threshold accuracy depends on RC oscillator tolerance
+- Speed thresholds quantized to integer pulse counts
 
-------------------------------------------------------------------------
+---
 
 ## Summary
 
-This project implements a simple, robust, and low-power frequency-based
-torque converter clutch controller suitable for automotive applications
-where vehicle speed is derived from a digital speed signal.
+This project implements a compact and reliable torque converter clutch
+controller using vehicle speed and engine RPM signals. The firmware
+prioritizes deterministic behavior, simplicity, and minimal resource
+usage while remaining well suited for embedded automotive applications.
