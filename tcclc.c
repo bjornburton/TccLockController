@@ -53,8 +53,8 @@
  * engine_speed < 950 rpm -> count < 57 -> disengage if count <= 56
  */
 #define ABS_FORCE_ENGAGE_COUNT   18u
-#define ENGINE_MIN_COUNT         57u
-#define ABS_ENGAGE_COUNT         10u
+#define ENGINE_MIN_COUNT         44u
+#define ABS_ENGAGE_COUNT         6u
 
 /* -------- Shared ISR state -------- */
 static volatile uint16_t abs_count = 0;
