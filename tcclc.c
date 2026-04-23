@@ -1,4 +1,3 @@
-\
 /*
  * tcclc_abs_only_mph.c
  *
@@ -55,11 +54,11 @@
  *     => engage when count >= ceil( mph * 22 * gate_ms / 10000 )
  *
  *   vehicle_speed < DISENGAGE_MPH
- *     => disengage when count <= floor( mph * 22 * gate_ms / 10000 ) - 1
+ *     => disengage when count <= floor( mph * 22 * gate_ms / 10000 )
  *
  * For GATE_MS_TARGET = 300 ms:
- *   15 mph -> 9.9 counts -> engage at >= 10
- *    9 mph -> 5.94 counts -> disengage at <= 5
+ *    9 mph -> 5.94 counts -> engage at >= 6
+ *    7 mph -> 4.62 counts -> disengage at <= 4
  */
 #define ABS_HZ_PER_MPH_NUM   22u
 #define ABS_HZ_PER_MPH_DEN   10u
@@ -74,7 +73,7 @@
     ((uint16_t)(MPH_TO_GATE_COUNTS_NUM(mph) / 10000u))
 
 #define ABS_ENGAGE_COUNT     MPH_TO_GATE_COUNTS_CEIL(ENGAGE_MPH)
-#define ABS_DISENGAGE_COUNT  ((uint16_t)(MPH_TO_GATE_COUNTS_FLOOR(DISENGAGE_MPH) - 1u))
+#define ABS_DISENGAGE_COUNT  MPH_TO_GATE_COUNTS_FLOOR(DISENGAGE_MPH)
 
 /* -------- Shared ISR state -------- */
 static volatile uint16_t abs_count = 0u;
