@@ -1,23 +1,26 @@
+\
 /*
- * tcclc.c 3.1
+ * tcclc_abs_only_mph.c
+ *
+ * ATtiny85, 8 MHz internal oscillator
  *
  * Control logic evaluated every 300 ms gate:
  *
- *   IF vehicle_speed > 27 mph:
+ *   IF vehicle_speed > 15 mph:
  *       clutch_state = ENGAGED
- *   ELSE IF engine_speed < 950 rpm:
+ *   ELSE IF vehicle_speed < 9 mph:
  *       clutch_state = DISENGAGED
- *   ELSE IF vehicle_speed > 15 mph:
- *       clutch_state = ENGAGED
  *   ELSE:
  *       clutch_state = clutch_state
  *
  * Ratios:
- *   ABS Frequency        2.2 Hz per mph
- *   Engine Frequency     1/5 Hz per rpm
+ *   ABS Frequency  2.2 Hz per mph
  *
  * Gate time:
  *   300 ms
+ *
+ * Thresholds are entered as integer mph values and converted at compile time
+ * to integer counts per gate using the C preprocessor.
  */
 
 #define F_CPU 8000000UL
@@ -29,7 +32,6 @@
 
 /* -------- Pin assignments -------- */
 #define ABS_PIN         PB4
-#define ENGINE_PIN      PB2
 #define CLUTCH_PIN      PB1
 
 /* -------- Gate timing -------- */
@@ -37,33 +39,47 @@
 #define T0_TICK_MS      16u
 #define GATE_MS_TARGET  300u
 
-/* -------- Thresholds for 300 ms gate --------
+/* -------- User thresholds (integer mph) -------- */
+#define ENGAGE_MPH       9u
+#define DISENGAGE_MPH    7u
+
+/* -------- Signal scaling --------
  *
- * ABS Frequency = 2.2 Hz per mph
+ * ABS Frequency = 2.2 Hz per mph = 22/10 Hz per mph
  *
- * 30 mph -> 66.0 Hz -> 19.8 counts / 300 ms -> engage if count >= 20
- * 15 mph -> 33.0 Hz ->  9.9 counts / 300 ms -> engage if count >= 10
- * 10 mph -> 22.0 Hz ->  6.6 counts / 300 ms -> disengage if count <= 6
+ * counts per gate = mph * (22/10) * (GATE_MS_TARGET/1000)
  *
- * Engine Frequency = 1/5 Hz per rpm
+ * To keep the thresholds conservative and consistent with the control logic:
  *
- * 950 rpm -> 190 Hz
- * 190 Hz * 0.300 s = 57 pulses
+ *   vehicle_speed > ENGAGE_MPH
+ *     => engage when count >= ceil( mph * 22 * gate_ms / 10000 )
  *
- * engine_speed < 950 rpm -> count < 57 -> disengage if count <= 56
+ *   vehicle_speed < DISENGAGE_MPH
+ *     => disengage when count <= floor( mph * 22 * gate_ms / 10000 ) - 1
+ *
+ * For GATE_MS_TARGET = 300 ms:
+ *   15 mph -> 9.9 counts -> engage at >= 10
+ *    9 mph -> 5.94 counts -> disengage at <= 5
  */
-#define ABS_FORCE_ENGAGE_COUNT   18u
-#define ENGINE_MIN_COUNT         44u
-#define ABS_ENGAGE_COUNT         6u
+#define ABS_HZ_PER_MPH_NUM   22u
+#define ABS_HZ_PER_MPH_DEN   10u
+
+#define MPH_TO_GATE_COUNTS_NUM(mph) \
+    ((uint32_t)(mph) * ABS_HZ_PER_MPH_NUM * (uint32_t)GATE_MS_TARGET)
+
+#define MPH_TO_GATE_COUNTS_CEIL(mph) \
+    ((uint16_t)((MPH_TO_GATE_COUNTS_NUM(mph) + 9999u) / 10000u))
+
+#define MPH_TO_GATE_COUNTS_FLOOR(mph) \
+    ((uint16_t)(MPH_TO_GATE_COUNTS_NUM(mph) / 10000u))
+
+#define ABS_ENGAGE_COUNT     MPH_TO_GATE_COUNTS_CEIL(ENGAGE_MPH)
+#define ABS_DISENGAGE_COUNT  ((uint16_t)(MPH_TO_GATE_COUNTS_FLOOR(DISENGAGE_MPH) - 1u))
 
 /* -------- Shared ISR state -------- */
-static volatile uint16_t abs_count = 0;
-static volatile uint16_t engine_count = 0;
-
-static volatile uint8_t last_abs = 0;
-static volatile uint8_t last_engine = 0;
-
-static volatile uint16_t gate_ms = 0;
+static volatile uint16_t abs_count = 0u;
+static volatile uint8_t last_abs = 0u;
+static volatile uint16_t gate_ms = 0u;
 
 typedef enum
 {
@@ -77,20 +93,13 @@ static volatile clutch_state_t clutch_state = CLUTCH_DISENGAGED;
 ISR(PCINT0_vect)
 {
     uint8_t pins = PINB;
-
     uint8_t abs = (uint8_t)((pins >> ABS_PIN) & 1u);
-    uint8_t engine = (uint8_t)((pins >> ENGINE_PIN) & 1u);
 
     if ((last_abs == 0u) && (abs != 0u)) {
         abs_count++;
     }
 
-    if ((last_engine == 0u) && (engine != 0u)) {
-        engine_count++;
-    }
-
     last_abs = abs;
-    last_engine = engine;
 }
 
 /* -------- Timer0 gate logic -------- */
@@ -104,29 +113,21 @@ ISR(TIMER0_COMPA_vect)
 
     gate_ms = (uint16_t)(gate_ms - GATE_MS_TARGET);
 
-    /* Snapshot and clear counts for this gate */
+    /* Snapshot and clear count for this gate */
     uint16_t abs = abs_count;
-    uint16_t engine = engine_count;
-
     abs_count = 0u;
-    engine_count = 0u;
 
-    /* Evaluate in exact requested order */
+    /* Evaluate control logic */
 
-    /* IF vehicle_speed > 30 mph */
-    if (abs >= ABS_FORCE_ENGAGE_COUNT) {
+    /* IF vehicle_speed > ENGAGE_MPH */
+    if (abs >= ABS_ENGAGE_COUNT) {
         PORTB |= (uint8_t)(1u << CLUTCH_PIN);
         clutch_state = CLUTCH_ENGAGED;
     }
-    /* ELSE IF engine_speed < 1200 rpm */
-    else if (engine < ENGINE_MIN_COUNT) {
+    /* ELSE IF vehicle_speed < DISENGAGE_MPH */
+    else if (abs <= ABS_DISENGAGE_COUNT) {
         PORTB &= (uint8_t)~(1u << CLUTCH_PIN);
         clutch_state = CLUTCH_DISENGAGED;
-    }
-    /* ELSE IF vehicle_speed > 15 mph */
-    else if (abs >= ABS_ENGAGE_COUNT) {
-        PORTB |= (uint8_t)(1u << CLUTCH_PIN);
-        clutch_state = CLUTCH_ENGAGED;
     }
     /* ELSE maintain previous state */
     else {
@@ -141,14 +142,13 @@ static void io_init(void)
     PORTB &= (uint8_t)~(1u << CLUTCH_PIN);
     clutch_state = CLUTCH_DISENGAGED;
 
-    /* ABS and engine inputs */
-    DDRB &= (uint8_t)~((1u << ABS_PIN) | (1u << ENGINE_PIN));
+    /* ABS input */
+    DDRB &= (uint8_t)~(1u << ABS_PIN);
 
     last_abs = (uint8_t)((PINB >> ABS_PIN) & 1u);
-    last_engine = (uint8_t)((PINB >> ENGINE_PIN) & 1u);
 
-    /* Enable only the two PCINT sources in use */
-    PCMSK |= (uint8_t)((1u << PCINT4) | (1u << PCINT2));
+    /* Enable only the ABS PCINT source */
+    PCMSK |= (uint8_t)(1u << PCINT4);
     GIMSK |= (uint8_t)(1u << PCIE);
 }
 
