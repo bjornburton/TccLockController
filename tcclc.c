@@ -39,15 +39,15 @@
  */
 #define T0_OCR0A_VALUE      124u
 #define T0_TICK_MS          16u
-#define GATE_MS_TARGET      1000u
+#define GATE_MS_TARGET      300u
 
 /* ---- Thresholds expressed as counts per 1 s gate ----
  * Because decision is based on integer rising-edge count over ~1 s:
  *   f > 58 Hz  -> count >= 58
  *   f < 52 Hz  -> count <= 52
  */
-#define THRESH_RISE_COUNT   57u
-#define THRESH_FALL_COUNT   52u
+#define THRESH_RISE_COUNT   18u
+#define THRESH_FALL_COUNT   15u
 
 /* ---- Temporal lockout in gate units ----
  * Minimum 1 s between output transitions.
